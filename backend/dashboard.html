@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STRATA Evolution Engine</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0a0f;--bg2:#12121a;--bg3:#1a1a28;--bg4:#222235;
+  --fg:#e0e0e8;--fg2:#a0a0b0;--fg3:#707088;
+  --accent:#6366f1;--accent2:#818cf8;--green:#22c55e;--red:#ef4444;
+  --orange:#f59e0b;--cyan:#06b6d4;
+}
+body{background:var(--bg);color:var(--fg);font-family:'JetBrains Mono','Fira Code',monospace;font-size:13px;line-height:1.5}
+a{color:var(--accent2)}
+.container{max-width:1400px;margin:0 auto;padding:16px}
+header{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--bg3);margin-bottom:16px}
+header h1{font-size:18px;font-weight:700;letter-spacing:2px;color:var(--accent2)}
+header .status{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--fg2)}
+header .dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px}
+.kpi{background:var(--bg2);border:1px solid var(--bg3);border-radius:8px;padding:14px;text-align:center}
+.kpi .label{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--fg3);margin-bottom:4px}
+.kpi .value{font-size:22px;font-weight:700}
+.kpi .value.good{color:var(--green)}
+.kpi .value.warn{color:var(--orange)}
+.kpi .value.bad{color:var(--red)}
+
+.insight-box{background:var(--bg2);border:1px solid var(--accent);border-radius:8px;padding:16px;margin-bottom:16px}
+.insight-box h3{font-size:12px;color:var(--accent2);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px}
+.insight-box .text{color:var(--fg2);font-size:12px;line-height:1.6}
+.insight-box .meta{display:flex;gap:16px;margin-top:8px;font-size:11px;color:var(--fg3)}
+.insight-box .tag{background:var(--bg4);padding:2px 8px;border-radius:4px;font-size:11px}
+
+.tabs{display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap}
+.tabs button{background:var(--bg2);border:1px solid var(--bg3);color:var(--fg2);padding:8px 16px;border-radius:6px 6px 0 0;cursor:pointer;font-family:inherit;font-size:12px;transition:all .2s}
+.tabs button:hover{background:var(--bg3)}
+.tabs button.active{background:var(--bg3);color:var(--accent2);border-bottom-color:var(--bg3)}
+
+.tab-content{background:var(--bg2);border:1px solid var(--bg3);border-radius:0 8px 8px 8px;padding:16px;min-height:400px}
+
+.metrics-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
+.metric-card{background:var(--bg3);border-radius:6px;padding:12px}
+.metric-card .name{font-size:11px;color:var(--fg3);margin-bottom:4px}
+.metric-card .bar-wrap{background:var(--bg);border-radius:3px;height:18px;overflow:hidden;position:relative}
+.metric-card .bar{height:100%;border-radius:3px;transition:width .5s ease}
+.metric-card .bar-label{position:absolute;right:6px;top:1px;font-size:11px;color:var(--fg);font-weight:600}
+.metric-card .weight{font-size:10px;color:var(--fg3);margin-top:3px;text-align:right}
+
+canvas{width:100%;height:350px;display:block}
+
+.log-table{width:100%;border-collapse:collapse;font-size:12px}
+.log-table th{text-align:left;padding:6px 10px;border-bottom:1px solid var(--bg4);color:var(--fg3);font-size:11px;text-transform:uppercase}
+.log-table td{padding:5px 10px;border-bottom:1px solid var(--bg3)}
+.log-table tr:hover{background:var(--bg3)}
+
+.principles-list{list-style:none;padding:0}
+.principles-list li{padding:8px 12px;border-left:3px solid var(--accent);margin-bottom:8px;background:var(--bg3);border-radius:0 6px 6px 0;font-size:12px;color:var(--fg2)}
+
+.spec-content{white-space:pre-wrap;font-size:12px;color:var(--fg2);line-height:1.7;max-height:600px;overflow-y:auto}
+
+.param-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:8px}
+.param-item{display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--bg3);border-radius:4px;font-size:11px}
+.param-item .pname{color:var(--fg3);flex:1}
+.param-item .pval{color:var(--accent2);font-weight:600;min-width:60px;text-align:right}
+.param-item .prange{color:var(--fg3);font-size:10px;min-width:80px;text-align:right}
+.group-header{font-size:12px;color:var(--accent2);text-transform:uppercase;letter-spacing:1px;margin:12px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--bg4)}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>STRATA EVOLUTION ENGINE</h1>
+    <div class="status">
+      <div class="dot" id="statusDot"></div>
+      <span id="statusText">Connecting...</span>
+    </div>
+  </header>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="insight-box" id="insightBox">
+    <h3>Claude Insight</h3>
+    <div class="text" id="insightText">Warte auf erste Analyse...</div>
+    <div class="meta" id="insightMeta"></div>
+  </div>
+
+  <div class="tabs" id="tabs">
+    <button class="active" data-tab="metrics">Metriken</button>
+    <button data-tab="islands">Inseln</button>
+    <button data-tab="strategies">Strategien</button>
+    <button data-tab="history">Verlauf</button>
+    <button data-tab="log">Gen-Log</button>
+    <button data-tab="principles">Emergente Prinzipien</button>
+    <button data-tab="prompt">System-Prompt</button>
+    <button data-tab="realvsim">Real vs Sim</button>
+    <button data-tab="spec">STRATA-Spezifikation</button>
+    <button data-tab="params">Parameter (40)</button>
+  </div>
+
+  <div class="tab-content" id="tabContent"></div>
+</div>
+
+<script>
+const POLL_MS = 3000;
+let currentTab = 'metrics';
+let chartData = [];
+let lastState = null;
+
+// Tab handling
+document.getElementById('tabs').addEventListener('click', e => {
+  if (e.target.tagName !== 'BUTTON') return;
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+  e.target.classList.add('active');
+  currentTab = e.target.dataset.tab;
+  renderTab();
+});
+
+function formatTime(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+function renderKPIs(st) {
+  const convergeBanner = st.converged
+    ? `<div style="grid-column:1/-1;background:linear-gradient(135deg,#0e4a5a,#064e3b);border:1px solid #06b6d4;border-radius:8px;padding:14px;text-align:center">
+         <div style="font-size:16px;font-weight:700;color:#06b6d4;letter-spacing:2px">KONVERGIERT</div>
+         <div style="font-size:12px;color:#a0a0b0;margin-top:4px">Generation ${st.converged_at_gen} — Finale Spezifikation exportiert nach data/STRATA_SPEC_FINAL.md</div>
+       </div>`
+    : '';
+  const kpis = [
+    { label: 'Generation', value: `${st.generation} / ${st.max_generations || '∞'}`, cls: '' },
+    { label: 'Best Fitness', value: st.best_fitness?.toFixed(4) || '—', cls: 'good' },
+    { label: 'Halluzinationsrate', value: st.best_metrics?.halluc_rate !== undefined
+        ? (st.best_metrics.halluc_rate * 100).toFixed(2) + '%' : '—',
+      cls: (st.best_metrics?.halluc_rate || 1) < 0.05 ? 'good' : (st.best_metrics?.halluc_rate || 1) < 0.15 ? 'warn' : 'bad' },
+    { label: 'Inseln / Genome', value: `3 × 12 = ${st.population?.length || 36}`, cls: '' },
+    { label: 'Stagnation', value: st.stagnation_counter + '/' + (st.config?.stagnation_patience || 15),
+      cls: st.stagnation_counter > 10 ? 'bad' : st.stagnation_counter > 5 ? 'warn' : 'good' },
+    { label: 'Schwachstelle', value: st.weakest_category || '—', cls: 'warn' },
+    { label: 'Claude / N Gens', value: st.claude_every_n || '—', cls: '' },
+    { label: 'Laufzeit', value: formatTime(st.elapsed_seconds || 0), cls: '' },
+  ];
+  document.getElementById('kpis').innerHTML = convergeBanner + kpis.map(k =>
+    `<div class="kpi"><div class="label">${k.label}</div><div class="value ${k.cls}">${k.value}</div></div>`
+  ).join('');
+}
+
+function renderInsight(st) {
+  const ins = st.last_insight;
+  if (!ins) return;
+  document.getElementById('insightText').textContent = ins.analysis || 'Keine Analyse';
+  const meta = [];
+  if (ins.bottleneck_metric) meta.push(`<span class="tag">Bottleneck: ${ins.bottleneck_metric}</span>`);
+  if (ins.strategy) meta.push(`<span class="tag">${ins.strategy}</span>`);
+  if (ins.convergence_assessment) meta.push(`<span class="tag">Konvergenz: ${ins.convergence_assessment}</span>`);
+  document.getElementById('insightMeta').innerHTML = meta.join('');
+}
+
+const METRIC_COLORS = {
+  halluc_rate: '#ef4444', signal_retention: '#22c55e', conflict_det: '#f59e0b',
+  uncl_clarity: '#06b6d4', efficiency: '#8b5cf6', robustness: '#22c55e',
+  over_caution_score: '#ef4444', premise_catch_rate: '#f59e0b',
+  knowledge_precision: '#3b82f6', conflict_pattern_score: '#f59e0b',
+  propagation_score: '#06b6d4', chain_integrity: '#22c55e',
+  source_trust_accuracy: '#3b82f6',
+};
+
+const METRIC_WEIGHTS = {
+  halluc_rate: -3.2, signal_retention: 1.9, conflict_det: 1.4, uncl_clarity: 1.1,
+  efficiency: 0.6, robustness: 1.9, over_caution_score: -1.5, premise_catch_rate: 1.6,
+  knowledge_precision: 1.7, conflict_pattern_score: 1.2, propagation_score: 1.3,
+  chain_integrity: 1.5, source_trust_accuracy: 1.4,
+};
+
+function renderMetrics(st) {
+  const m = st.best_metrics || {};
+  const container = document.getElementById('tabContent');
+  const cards = Object.entries(m).map(([k, v]) => {
+    const pct = (v * 100).toFixed(1);
+    const color = METRIC_COLORS[k] || '#6366f1';
+    const w = METRIC_WEIGHTS[k] || 0;
+    const wLabel = w > 0 ? `+${w}` : `${w}`;
+    return `<div class="metric-card">
+      <div class="name">${k}</div>
+      <div class="bar-wrap">
+        <div class="bar" style="width:${pct}%;background:${color}"></div>
+        <div class="bar-label">${pct}%</div>
+      </div>
+      <div class="weight">Gewicht: ${wLabel}</div>
+    </div>`;
+  }).join('');
+
+  // Per-category breakdown
+  const perCat = st.per_category || {};
+  let catHtml = '';
+  if (Object.keys(perCat).length > 0) {
+    catHtml = '<div style="margin-top:16px"><div class="group-header">Per-Szenario Fitness</div><div class="metrics-grid">';
+    for (const [name, data] of Object.entries(perCat)) {
+      const isWeakest = name === st.weakest_category;
+      const border = isWeakest ? 'border:1px solid #ef4444' : '';
+      catHtml += `<div class="metric-card" style="${border}">
+        <div class="name">${name}${isWeakest ? ' ⚠ SCHWACHSTELLE' : ''}</div>
+        <div class="bar-wrap">
+          <div class="bar" style="width:${Math.min(100, Math.max(0, (data.fitness / 12) * 100))}%;background:${isWeakest ? '#ef4444' : '#6366f1'}"></div>
+          <div class="bar-label">${data.fitness?.toFixed(2) || '—'}</div>
+        </div>
+        <div class="weight">Halluc: ${(data.halluc_rate * 100).toFixed(1)}% | Rob: ${(data.robustness * 100).toFixed(1)}%</div>
+      </div>`;
+    }
+    catHtml += '</div></div>';
+  }
+
+  container.innerHTML = `<div class="metrics-grid">${cards}</div>${catHtml}`;
+}
+
+function renderIslands(st) {
+  const islands = st.islands || {};
+  const container = document.getElementById('tabContent');
+  const roleColors = { exploiter: '#22c55e', explorer: '#f59e0b', ai_directed: '#06b6d4' };
+  const roleLabels = { exploiter: 'EXPLOITER (Verfeinern)', explorer: 'EXPLORER (Entdecken)', ai_directed: 'AI-DIRECTED (KI-gesteuert)' };
+
+  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:16px">';
+  for (const [role, data] of Object.entries(islands)) {
+    const color = roleColors[role] || '#6366f1';
+    const label = roleLabels[role] || role;
+    html += `<div style="background:var(--bg3);border-radius:8px;padding:16px;border-left:3px solid ${color}">
+      <div style="font-size:14px;font-weight:700;color:${color};margin-bottom:8px">${label}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;margin-bottom:12px">
+        <div><span style="color:var(--fg3)">Best:</span> <span style="color:var(--fg)">${data.best_fitness?.toFixed(4) || '—'}</span></div>
+        <div><span style="color:var(--fg3)">Avg:</span> <span style="color:var(--fg)">${data.avg_fitness?.toFixed(4) || '—'}</span></div>
+        <div><span style="color:var(--fg3)">Mutation:</span> <span style="color:var(--fg)">${data.mutation_strength?.toFixed(3) || '—'}</span></div>
+        <div><span style="color:var(--fg3)">Stagnation:</span> <span style="color:${data.stagnation_counter > 10 ? '#ef4444' : '#22c55e'}">${data.stagnation_counter}</span></div>
+      </div>
+      <div style="font-size:11px;color:var(--fg3)">Population (${data.size}):</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">
+        ${(data.population || []).map((g, i) =>
+          `<div style="background:var(--bg);padding:2px 6px;border-radius:3px;font-size:10px;color:${i === 0 ? color : 'var(--fg3)'}">${g.fitness?.toFixed(2) || '—'}</div>`
+        ).join('')}
+      </div>
+    </div>`;
+  }
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function renderStrategies(st) {
+  const ledger = st.strategy_ledger || [];
+  const container = document.getElementById('tabContent');
+
+  if (ledger.length === 0) {
+    container.innerHTML = '<p style="color:#707088;text-align:center;padding:40px">Noch keine Strategien. Claude diagnostiziert Probleme alle 10 Generationen.</p>';
+    return;
+  }
+
+  const rows = ledger.slice().reverse().map(s => {
+    const success = s.success;
+    const icon = success ? '✓' : s.fitness_after !== null ? '✗' : '⏳';
+    const color = success ? '#22c55e' : s.fitness_after !== null ? '#ef4444' : '#f59e0b';
+    const imp = s.improvement !== undefined && s.improvement !== null ? `${s.improvement > 0 ? '+' : ''}${s.improvement.toFixed(4)}` : '—';
+    return `<tr>
+      <td style="color:${color};font-weight:700">${icon}</td>
+      <td>${s.strategy_id || '—'}</td>
+      <td>${s.generation_proposed || '—'}</td>
+      <td style="font-size:11px">${escHtml(s.description || '—')}</td>
+      <td>${s.fitness_before?.toFixed(4) || '—'}</td>
+      <td style="color:${color}">${imp}</td>
+    </tr>`;
+  }).join('');
+
+  const successCount = ledger.filter(s => s.success).length;
+  const totalEval = ledger.filter(s => s.fitness_after !== null && s.fitness_after !== undefined).length;
+
+  container.innerHTML = `
+    <div style="margin-bottom:12px;font-size:12px;color:var(--fg2)">
+      Erfolgsrate: <span style="color:#22c55e;font-weight:700">${successCount}/${totalEval}</span>
+      (${totalEval > 0 ? ((successCount/totalEval)*100).toFixed(0) : 0}%) |
+      Ausstehend: <span style="color:#f59e0b">${st.pending_strategies || 0}</span>
+    </div>
+    <table class="log-table">
+      <thead><tr><th></th><th>ID</th><th>Gen</th><th>Beschreibung</th><th>Vor</th><th>Δ Fitness</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function renderHistory(st) {
+  const container = document.getElementById('tabContent');
+  container.innerHTML = '<canvas id="histChart"></canvas>';
+  const canvas = document.getElementById('histChart');
+  const ctx = canvas.getContext('2d');
+
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = 350 * dpr;
+  ctx.scale(dpr, dpr);
+
+  const W = rect.width;
+  const H = 350;
+  const pad = { t: 30, r: 20, b: 40, l: 60 };
+  const data = st.fitness_history || [];
+  if (data.length < 2) {
+    ctx.fillStyle = '#707088';
+    ctx.font = '14px monospace';
+    ctx.fillText('Warte auf Daten...', W / 2 - 60, H / 2);
+    return;
+  }
+
+  const minV = Math.min(...data) - 0.5;
+  const maxV = Math.max(...data) + 0.5;
+  const xScale = (W - pad.l - pad.r) / (data.length - 1);
+  const yScale = (H - pad.t - pad.b) / (maxV - minV);
+
+  // Grid
+  ctx.strokeStyle = '#1a1a28';
+  ctx.lineWidth = 1;
+  const ySteps = 5;
+  for (let i = 0; i <= ySteps; i++) {
+    const y = pad.t + (H - pad.t - pad.b) * i / ySteps;
+    ctx.beginPath();
+    ctx.moveTo(pad.l, y);
+    ctx.lineTo(W - pad.r, y);
+    ctx.stroke();
+    const val = maxV - (maxV - minV) * i / ySteps;
+    ctx.fillStyle = '#707088';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(val.toFixed(2), pad.l - 8, y + 4);
+  }
+
+  // Line
+  ctx.strokeStyle = '#6366f1';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  data.forEach((v, i) => {
+    const x = pad.l + i * xScale;
+    const y = pad.t + (maxV - v) * yScale;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // Gradient fill
+  const grad = ctx.createLinearGradient(0, pad.t, 0, H - pad.b);
+  grad.addColorStop(0, 'rgba(99,102,241,0.3)');
+  grad.addColorStop(1, 'rgba(99,102,241,0)');
+  ctx.lineTo(pad.l + (data.length - 1) * xScale, H - pad.b);
+  ctx.lineTo(pad.l, H - pad.b);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Labels
+  ctx.fillStyle = '#707088';
+  ctx.font = '11px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('Generation', W / 2, H - 5);
+  ctx.save();
+  ctx.translate(12, H / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('Fitness', 0, 0);
+  ctx.restore();
+
+  // Title
+  ctx.fillStyle = '#a0a0b0';
+  ctx.font = '12px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText(`Fitness-Verlauf (${data.length} Generationen)`, pad.l, 16);
+}
+
+function renderLog(st) {
+  const logs = (st.gen_log || []).slice().reverse();
+  const rows = logs.map(l => {
+    let flags = '';
+    if (l.claude) flags += '<span class="tag" style="color:#818cf8">CLAUDE</span> ';
+    if (l.escape) flags += `<span class="tag" style="color:#f59e0b">ESCAPE: ${l.escape}</span> `;
+    if (l.synthesis) flags += '<span class="tag" style="color:#22c55e">SYNTHESIS</span> ';
+    if (l.diagnosis) flags += '<span class="tag" style="color:#06b6d4">DIAGNOSE</span> ';
+    if (l.strategies_injected) flags += `<span class="tag" style="color:#06b6d4">+${l.strategies_injected} Strategien</span> `;
+    if (l.migration) flags += '<span class="tag" style="color:#f59e0b">MIGRATION</span> ';
+    if (l.ollama_validation) flags += `<span class="tag" style="color:#22c55e">OLLAMA ×${l.ollama_validation}</span> `;
+    if (l.best_real_fitness) flags += `<span class="tag" style="color:#22c55e;font-size:10px">Real:${l.best_real_fitness?.toFixed(2)}</span> `;
+    // Island bests
+    if (l.island_bests) {
+      const ib = l.island_bests;
+      flags += `<span class="tag" style="color:#22c55e;font-size:10px">E:${ib.exploiter?.toFixed(2)||'—'} X:${ib.explorer?.toFixed(2)||'—'} A:${ib.ai_directed?.toFixed(2)||'—'}</span> `;
+    }
+    return `<tr>
+      <td>${l.gen}</td>
+      <td style="color:${l.best_fitness > 5 ? '#22c55e' : '#f59e0b'}">${l.best_fitness?.toFixed(4) || '—'}</td>
+      <td style="color:${(l.best_halluc || 0) < 0.05 ? '#22c55e' : '#ef4444'}">${((l.best_halluc || 0) * 100).toFixed(2)}%</td>
+      <td>${l.avg_fitness?.toFixed(4) || '—'}</td>
+      <td>${l.stagnation}</td>
+      <td>${l.time}s</td>
+      <td>${flags}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('tabContent').innerHTML = `
+    <table class="log-table">
+      <thead><tr><th>Gen</th><th>Best</th><th>Halluc</th><th>Avg</th><th>Stag</th><th>Zeit</th><th>Events</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="7" style="text-align:center;color:#707088">Keine Einträge</td></tr>'}</tbody>
+    </table>`;
+}
+
+function renderPrinciples(st) {
+  const ps = st.emergent_principles || [];
+  if (ps.length === 0) {
+    document.getElementById('tabContent').innerHTML = '<p style="color:#707088;text-align:center;padding:40px">Noch keine emergenten Prinzipien entdeckt. Claude identifiziert diese während der Analyse.</p>';
+    return;
+  }
+  document.getElementById('tabContent').innerHTML = `
+    <ul class="principles-list">
+      ${ps.map((p, i) => `<li><strong>#${i + 1}:</strong> ${escHtml(p)}</li>`).join('')}
+    </ul>`;
+}
+
+function renderSpec(st) {
+  const spec = st.last_spec;
+  if (!spec) {
+    document.getElementById('tabContent').innerHTML = '<p style="color:#707088;text-align:center;padding:40px">Erste Spezifikation wird nach Generation 100 synthetisiert.</p>';
+    return;
+  }
+  document.getElementById('tabContent').innerHTML = `<div class="spec-content">${escHtml(spec)}</div>`;
+}
+
+function renderParams(st) {
+  const vals = st.best_values || {};
+  const groups = {};
+  const SPECS = [
+    {name:"context_window_pct",group:"layers",lo:0.1,hi:1.0},
+    {name:"layer_depth",group:"layers",lo:1,hi:8},
+    {name:"compression_ratio",group:"layers",lo:0.05,hi:0.95},
+    {name:"recency_weight",group:"layers",lo:0,hi:1},
+    {name:"cross_layer_bleed",group:"layers",lo:0,hi:0.5},
+    {name:"base_confidence",group:"confidence",lo:0.1,hi:0.99},
+    {name:"confidence_decay",group:"confidence",lo:0.001,hi:0.1},
+    {name:"min_confidence_threshold",group:"confidence",lo:0.01,hi:0.5},
+    {name:"confidence_aggregation_mode",group:"confidence",lo:0,hi:2},
+    {name:"uncertainty_propagation_rate",group:"uncertainty",lo:0,hi:1},
+    {name:"uncertainty_floor",group:"uncertainty",lo:0,hi:0.3},
+    {name:"epistemic_weight",group:"uncertainty",lo:0,hi:1},
+    {name:"uncertainty_compounding",group:"uncertainty",lo:1,hi:3},
+    {name:"hedging_verbosity",group:"uncertainty",lo:0,hi:1},
+    {name:"source_anchor_strength",group:"anchors",lo:0,hi:1},
+    {name:"anchor_decay_rate",group:"anchors",lo:0,hi:0.2},
+    {name:"max_anchor_count",group:"anchors",lo:1,hi:20},
+    {name:"anchor_conflict_resolution",group:"anchors",lo:0,hi:2},
+    {name:"source_freshness_weight",group:"anchors",lo:0,hi:1},
+    {name:"conflict_detection_sensitivity",group:"conflict",lo:0,hi:1},
+    {name:"conflict_escalation_threshold",group:"conflict",lo:0.1,hi:0.9},
+    {name:"conflict_resolution_strategy",group:"conflict",lo:0,hi:3},
+    {name:"multi_doc_conflict_weight",group:"conflict",lo:0,hi:1},
+    {name:"contradiction_memory_depth",group:"conflict",lo:1,hi:10},
+    {name:"meta_awareness_depth",group:"meta",lo:0,hi:3},
+    {name:"calibration_sensitivity",group:"meta",lo:0,hi:1},
+    {name:"self_correction_rate",group:"meta",lo:0,hi:1},
+    {name:"hallucination_vigilance",group:"meta",lo:0,hi:1},
+    {name:"abstraction_level",group:"meta",lo:0,hi:1},
+    {name:"working_memory_slots",group:"memory",lo:3,hi:20},
+    {name:"retrieval_precision_bias",group:"memory",lo:0,hi:1},
+    {name:"consolidation_interval",group:"memory",lo:1,hi:50},
+    {name:"forgetting_curve_steepness",group:"memory",lo:0.01,hi:0.5},
+    {name:"semantic_similarity_threshold",group:"memory",lo:0.1,hi:0.95},
+    {name:"parallel_retrieval_paths",group:"memory",lo:1,hi:8},
+    {name:"learning_rate",group:"adaptive",lo:0.001,hi:0.3},
+    {name:"exploration_temperature",group:"adaptive",lo:0,hi:2},
+    {name:"feedback_integration_speed",group:"adaptive",lo:0,hi:1},
+    {name:"domain_transfer_coefficient",group:"adaptive",lo:0,hi:1},
+    {name:"attention_head_allocation",group:"adaptive",lo:0,hi:1},
+  ];
+
+  SPECS.forEach(s => {
+    if (!groups[s.group]) groups[s.group] = [];
+    groups[s.group].push(s);
+  });
+
+  let html = '';
+  for (const [group, specs] of Object.entries(groups)) {
+    html += `<div class="group-header">${group}</div><div class="param-grid">`;
+    specs.forEach(s => {
+      const v = vals[s.name];
+      const display = v !== undefined ? (Number.isInteger(s.lo) && Number.isInteger(s.hi) ? Math.round(v) : v.toFixed(4)) : '—';
+      html += `<div class="param-item">
+        <span class="pname">${s.name}</span>
+        <span class="pval">${display}</span>
+        <span class="prange">[${s.lo}–${s.hi}]</span>
+      </div>`;
+    });
+    html += '</div>';
+  }
+
+  document.getElementById('tabContent').innerHTML = html;
+}
+
+function renderTab() {
+  if (!lastState) return;
+  switch (currentTab) {
+    case 'metrics': renderMetrics(lastState); break;
+    case 'islands': renderIslands(lastState); break;
+    case 'strategies': renderStrategies(lastState); break;
+    case 'history': renderHistory(lastState); break;
+    case 'log': renderLog(lastState); break;
+    case 'principles': renderPrinciples(lastState); break;
+    case 'prompt': renderPrompt(lastState); break;
+    case 'realvsim': renderRealVsSim(lastState); break;
+    case 'spec': renderSpec(lastState); break;
+    case 'params': renderParams(lastState); break;
+  }
+}
+
+function renderPrompt(st) {
+  const container = document.getElementById('tabContent');
+  const prompt = st.best_system_prompt || '';
+  const summary = st.prompt_summary || {};
+
+  if (!prompt) {
+    container.innerHTML = '<p style="color:#707088;text-align:center;padding:40px">System-Prompt wird nach Generation 100 erstmals kompiliert.</p>';
+    return;
+  }
+
+  const summaryHtml = Object.entries(summary).map(([k, v]) =>
+    `<div style="display:flex;justify-content:space-between;padding:4px 8px;background:var(--bg3);border-radius:4px;font-size:11px">
+      <span style="color:var(--fg3)">${k}</span>
+      <span style="color:var(--accent2);font-weight:600">${v}</span>
+    </div>`
+  ).join('');
+
+  container.innerHTML = `
+    <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
+      <button onclick="navigator.clipboard.writeText(document.getElementById('promptText').textContent).then(()=>this.textContent='Kopiert!')" style="background:var(--accent);color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px">Prompt kopieren</button>
+      <span style="color:var(--fg3);font-size:11px">Gen ${st.generation} | Fitness ${st.best_fitness?.toFixed(4) || '—'}</span>
+    </div>
+    ${summaryHtml ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;margin-bottom:12px">${summaryHtml}</div>` : ''}
+    <div id="promptText" class="spec-content" style="border:1px solid var(--bg4);padding:16px;border-radius:8px;background:var(--bg);font-size:11px;max-height:500px;overflow-y:auto">${escHtml(prompt)}</div>`;
+}
+
+function renderRealVsSim(st) {
+  const evals = st.real_evaluations || [];
+  const container = document.getElementById('tabContent');
+
+  if (evals.length === 0) {
+    container.innerHTML = '<p style="color:#707088;text-align:center;padding:40px">Echte LLM-Tests starten alle 50 Generationen via Ollama (kostenlos). Warte auf erste Ergebnisse...</p>';
+    return;
+  }
+
+  const rows = evals.slice().reverse().map(e => {
+    const delta = e.delta;
+    const color = Math.abs(delta) < 0.5 ? '#22c55e' : delta > 0 ? '#06b6d4' : '#ef4444';
+    return `<tr>
+      <td>${e.generation}</td>
+      <td>${e.genome_id?.substring(0,8) || '—'}</td>
+      <td>${e.model}</td>
+      <td>${e.sim_fitness?.toFixed(4) || '—'}</td>
+      <td>${e.real_fitness?.toFixed(4) || '—'}</td>
+      <td style="color:${color};font-weight:700">${delta > 0 ? '+' : ''}${delta?.toFixed(4) || '—'}</td>
+      <td>${e.elapsed?.toFixed(1) || '—'}s</td>
+    </tr>`;
+  }).join('');
+
+  // Compute correlation
+  const simVals = evals.map(e => e.sim_fitness || 0);
+  const realVals = evals.map(e => e.real_fitness || 0);
+  const avgDelta = evals.reduce((s, e) => s + Math.abs(e.delta || 0), 0) / evals.length;
+
+  container.innerHTML = `
+    <div style="margin-bottom:12px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px;font-size:12px">
+      <div class="kpi"><div class="label">Tests Total</div><div class="value">${evals.length}</div></div>
+      <div class="kpi"><div class="label">Avg |Δ Fitness|</div><div class="value ${avgDelta < 1 ? 'good' : 'warn'}">${avgDelta.toFixed(3)}</div></div>
+      <div class="kpi"><div class="label">Letzter Test</div><div class="value">Gen ${evals[evals.length-1]?.generation || '—'}</div></div>
+    </div>
+    <table class="log-table">
+      <thead><tr><th>Gen</th><th>Genom</th><th>Modell</th><th>Sim Fitness</th><th>Real Fitness</th><th>Δ</th><th>Zeit</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+async function poll() {
+  try {
+    const res = await fetch('/state');
+    if (!res.ok) throw new Error(res.statusText);
+    const st = await res.json();
+    lastState = st;
+
+    if (st.converged) {
+      document.getElementById('statusDot').style.background = '#06b6d4';
+      document.getElementById('statusDot').style.animation = 'none';
+      document.getElementById('statusText').textContent = `KONVERGIERT bei Gen ${st.converged_at_gen} | Fitness ${st.best_fitness?.toFixed(4)}`;
+    } else {
+      document.getElementById('statusDot').style.background = st.running ? '#22c55e' : '#ef4444';
+      document.getElementById('statusDot').style.animation = st.running ? 'pulse 2s infinite' : 'none';
+      document.getElementById('statusText').textContent = st.running
+        ? `Gen ${st.generation} | Fitness ${st.best_fitness?.toFixed(4) || '—'}`
+        : 'Gestoppt';
+    }
+
+    renderKPIs(st);
+    renderInsight(st);
+    renderTab();
+  } catch (e) {
+    document.getElementById('statusDot').style.background = '#ef4444';
+    document.getElementById('statusText').textContent = 'Verbindung verloren';
+  }
+}
+
+setInterval(poll, POLL_MS);
+poll();
+</script>
+</body>
+</html>

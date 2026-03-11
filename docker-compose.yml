@@ -1,0 +1,74 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    deploy:
+      resources:
+        reservations:
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ollama-setup:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["sh", "-c", "ollama pull llama3.2:1b"]
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    restart: "no"
+
+  evolution:
+    build: ./backend
+    restart: unless-stopped
+    ports:
+      - "7860:7860"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - CLAUDE_ENABLED=${CLAUDE_ENABLED:-false}
+      - STRATA_DATA_DIR=/app/data
+      # Evolution settings
+      - POPULATION_SIZE=${POPULATION_SIZE:-12}
+      - WORKLOADS_PER_GENOME=${WORKLOADS_PER_GENOME:-60}
+      - CLAUDE_EVERY_N=${CLAUDE_EVERY_N:-100}
+      - DIAGNOSIS_EVERY_N=${DIAGNOSIS_EVERY_N:-200}
+      - SYNTHESIS_EVERY_N=${SYNTHESIS_EVERY_N:-1000}
+      - STAGNATION_PATIENCE=${STAGNATION_PATIENCE:-15}
+      - SLEEP_BETWEEN_GENS=${SLEEP_BETWEEN_GENS:-0.05}
+      - MIGRATION_INTERVAL=${MIGRATION_INTERVAL:-20}
+      - MAX_GENERATIONS=${MAX_GENERATIONS:-10000}
+      # Ollama (free LLM validation)
+      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:1b}
+      - OLLAMA_EVERY_N=${OLLAMA_EVERY_N:-100}
+      - OLLAMA_TOP_N=${OLLAMA_TOP_N:-1}
+      - OLLAMA_CASES=${OLLAMA_CASES:-4}
+      - OLLAMA_TIMEOUT=${OLLAMA_TIMEOUT:-120}
+      - OLLAMA_NUM_PREDICT=${OLLAMA_NUM_PREDICT:-256}
+      # Convergence
+      - CONVERGENCE_WINDOW=${CONVERGENCE_WINDOW:-5000}
+      - CONVERGENCE_THRESHOLD=${CONVERGENCE_THRESHOLD:-0.003}
+      # Email (optional)
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - NOTIFY_EMAIL=${NOTIFY_EMAIL:-}
+      - NOTIFY_EVERY_N=${NOTIFY_EVERY_N:-500}
+
+volumes:
+  ollama_data:

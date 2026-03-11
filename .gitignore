@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Environment
+.env
+.env.local
+
+# Data (generated)
+data/strata.db
+data/*.db-journal
+logs/*.log
+server.log
+server_v5.log
+
+# Keep output files tracked
+!data/STRATA_SYSTEM_PROMPT.md
+!data/STRATA_SPEC_FINAL.md
+!data/best_genome_final.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Claude
+.claude/
